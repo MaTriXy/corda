@@ -28,6 +28,7 @@ import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.InputStream
 import java.net.InetSocketAddress
+import java.net.URL
 import java.security.cert.CertPath
 import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
@@ -61,7 +62,7 @@ class HTTPNetworkMapClientTest {
                         register(MockNetworkMapServer())
                     }
                     val jerseyServlet = ServletHolder(ServletContainer(resourceConfig)).apply { initOrder = 0 }// Initialise at server start
-                    addServlet(jerseyServlet, "/api/*")
+                    addServlet(jerseyServlet, "/*")
                 })
             }
         }
@@ -72,7 +73,7 @@ class HTTPNetworkMapClientTest {
         }
 
         val hostAndPort = server.connectors.mapNotNull { it as? ServerConnector }.first()
-        networkMapClient = HTTPNetworkMapClient("http://${hostAndPort.host}:${hostAndPort.localPort}/api/network-map")
+        networkMapClient = HTTPNetworkMapClient(URL("http://${hostAndPort.host}:${hostAndPort.localPort}"))
     }
 
     @After
@@ -90,7 +91,7 @@ class HTTPNetworkMapClientTest {
 
         val nodeInfoHash = nodeInfo.serialize().sha256()
 
-        assertThat(networkMapClient.getNetworkMap()).containsExactly(nodeInfoHash)
+        assertThat(networkMapClient.getNetworkMap().networkMap).containsExactly(nodeInfoHash)
         assertEquals(nodeInfo, networkMapClient.getNodeInfo(nodeInfoHash))
 
         val signedNodeInfo2 = createNodeInfo("Test2")
@@ -98,7 +99,7 @@ class HTTPNetworkMapClientTest {
         networkMapClient.publish(signedNodeInfo2)
 
         val nodeInfoHash2 = nodeInfo2.serialize().sha256()
-        assertThat(networkMapClient.getNetworkMap()).containsExactly(nodeInfoHash, nodeInfoHash2)
+        assertThat(networkMapClient.getNetworkMap().networkMap).containsExactly(nodeInfoHash, nodeInfoHash2)
         assertEquals(nodeInfo2, networkMapClient.getNodeInfo(nodeInfoHash2))
     }
 

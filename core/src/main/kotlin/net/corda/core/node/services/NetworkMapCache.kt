@@ -2,6 +2,7 @@ package net.corda.core.node.services
 
 import net.corda.core.DoNotImplement
 import net.corda.core.concurrent.CordaFuture
+import net.corda.core.crypto.SecureHash
 import net.corda.core.identity.AbstractParty
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.identity.Party
@@ -92,6 +93,10 @@ interface NetworkMapCacheBase {
 
     /** Return all [NodeInfo]s the node currently is aware of (including ourselves). */
     val allNodes: List<NodeInfo>
+
+    val allNodeHashes: List<SecureHash>
+
+    fun getNodeByHash(nodeHash: SecureHash): NodeInfo?
 
     /**
      * Look up the node information entries for a specific identity key.

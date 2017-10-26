@@ -69,7 +69,7 @@ fun testNodeConfiguration(
         doReturn("").whenever(it).emailAddress
         doReturn("").whenever(it).exportJMXto
         doReturn(true).whenever(it).devMode
-        doReturn(URL("http://localhost")).whenever(it).certificateSigningService
+        doReturn(null).whenever(it).compatibilityZoneURL
         doReturn(emptyList<CertChainPolicyConfig>()).whenever(it).certificateChainCheckPolicies
         doReturn(VerifierType.InMemory).whenever(it).verifierType
         doReturn(5).whenever(it).messageRedeliveryDelaySeconds

@@ -3,14 +3,20 @@ package net.corda.node.services.network
 import com.google.common.jimfs.Configuration
 import com.google.common.jimfs.Jimfs
 import net.corda.cordform.CordformNode
+import net.corda.core.crypto.SignedData
 import net.corda.core.internal.createDirectories
 import net.corda.core.internal.div
 import net.corda.core.node.NodeInfo
+import net.corda.core.node.services.KeyManagementService
+import net.corda.core.serialization.serialize
+import net.corda.node.services.identity.InMemoryIdentityService
 import net.corda.nodeapi.NodeInfoFilesCopier
 import net.corda.testing.ALICE
 import net.corda.testing.ALICE_KEY
+import net.corda.testing.DEV_TRUST_ROOT
 import net.corda.testing.getTestPartyAndCertificate
 import net.corda.testing.internal.NodeBasedTest
+import net.corda.testing.node.MockKeyManagementService
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.contentOf
 import org.junit.Before
@@ -27,6 +33,7 @@ class NodeInfoWatcherTest : NodeBasedTest() {
         val nodeInfo = NodeInfo(listOf(), listOf(getTestPartyAndCertificate(ALICE)), 0, 0)
     }
 
+    private lateinit var keyManagementService: KeyManagementService
     private lateinit var nodeInfoPath: Path
     private val scheduler = TestScheduler()
     private val testSubscriber = TestSubscriber<NodeInfo>()
@@ -36,6 +43,8 @@ class NodeInfoWatcherTest : NodeBasedTest() {
 
     @Before
     fun start() {
+        val identityService = InMemoryIdentityService(trustRoot = DEV_TRUST_ROOT)
+        keyManagementService = MockKeyManagementService(identityService, ALICE_KEY)
         nodeInfoWatcher = NodeInfoWatcher(tempFolder.root.toPath(), scheduler = scheduler)
         nodeInfoPath = tempFolder.root.toPath() / CordformNode.NODE_INFO_DIRECTORY
     }
@@ -44,7 +53,8 @@ class NodeInfoWatcherTest : NodeBasedTest() {
     fun `save a NodeInfo`() {
         assertEquals(0,
                 tempFolder.root.list().filter { it.startsWith(NodeInfoFilesCopier.NODE_INFO_FILE_NAME_PREFIX) }.size)
-        NodeInfoWatcher.saveToFile(tempFolder.root.toPath(), nodeInfo, ALICE_KEY)
+        val signedNodeInfo = SignedData(nodeInfo.serialize(), keyManagementService.sign(nodeInfo.serialize().bytes, nodeInfo.legalIdentities.first().owningKey))
+        NodeInfoWatcher.saveToFile(tempFolder.root.toPath(), signedNodeInfo)
 
         val nodeInfoFiles = tempFolder.root.list().filter { it.startsWith(NodeInfoFilesCopier.NODE_INFO_FILE_NAME_PREFIX) }
         assertEquals(1, nodeInfoFiles.size)
@@ -59,7 +69,8 @@ class NodeInfoWatcherTest : NodeBasedTest() {
     fun `save a NodeInfo to JimFs`() {
         val jimFs = Jimfs.newFileSystem(Configuration.unix())
         val jimFolder = jimFs.getPath("/nodeInfo")
-        NodeInfoWatcher.saveToFile(jimFolder, nodeInfo, ALICE_KEY)
+        val signedNodeInfo = SignedData(nodeInfo.serialize(), keyManagementService.sign(nodeInfo.serialize().bytes, nodeInfo.legalIdentities.first().owningKey))
+        NodeInfoWatcher.saveToFile(jimFolder, signedNodeInfo)
     }
 
     @Test
@@ -128,6 +139,7 @@ class NodeInfoWatcherTest : NodeBasedTest() {
 
     // Write a nodeInfo under the right path.
     private fun createNodeInfoFileInPath(nodeInfo: NodeInfo) {
-        NodeInfoWatcher.saveToFile(nodeInfoPath, nodeInfo, ALICE_KEY)
+        val signedNodeInfo = SignedData(nodeInfo.serialize(), keyManagementService.sign(nodeInfo.serialize().bytes, nodeInfo.legalIdentities.first().owningKey))
+        NodeInfoWatcher.saveToFile(nodeInfoPath, signedNodeInfo)
     }
 }

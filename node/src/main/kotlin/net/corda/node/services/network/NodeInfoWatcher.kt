@@ -24,19 +24,20 @@ import kotlin.streams.toList
  * - Serialize and de-serialize a [NodeInfo] to disk and reading it back.
  * - Poll a directory for new serialized [NodeInfo]
  *
- * @param path the base path of a node.
- * @param pollFrequencyMsec how often to poll the filesystem in milliseconds. Any value smaller than 5 seconds will
+ * @param nodePath the base path of a node.
+ * @param pollFrequency how often to poll the filesystem in milliseconds. Any value smaller than 5 seconds will
  *        be treated as 5 seconds.
  * @param scheduler a [Scheduler] for the rx [Observable] returned by [nodeInfoUpdates], this is mainly useful for
  *        testing. It defaults to the io scheduler which is the appropriate value for production uses.
  */
+// TODO: Use NIO watch service instead?
 class NodeInfoWatcher(private val nodePath: Path,
-                      pollFrequencyMsec: Long = 5.seconds.toMillis(),
+                      pollFrequency: Long = 5.seconds.toMillis(),
                       private val scheduler: Scheduler = Schedulers.io()) {
 
     private val nodeInfoDirectory = nodePath / CordformNode.NODE_INFO_DIRECTORY
-    private val pollFrequencyMsec: Long = maxOf(pollFrequencyMsec, 5.seconds.toMillis())
-    private val successfullyProcessedFiles = mutableSetOf<Path>()
+    private val pollFrequency: Long = maxOf(pollFrequency, 5.seconds.toMillis())
+    private val processedNodeInfo = mutableSetOf<Path>()
 
     companion object {
         private val logger = loggerFor<NodeInfoWatcher>()
@@ -51,14 +52,12 @@ class NodeInfoWatcher(private val nodePath: Path,
          * @param nodeInfo the NodeInfo to serialize.
          * @param signingKey used to sign the NodeInfo data.
          */
-        fun saveToFile(path: Path, nodeInfo: NodeInfo, signingKey: KeyPair) {
+        fun saveToFile(path: Path, signedNodeInfo: SignedData<NodeInfo>) {
             try {
                 path.createDirectories()
-                val serializedBytes = nodeInfo.serialize()
-                val regSig = signingKey.sign(serializedBytes.bytes)
-                val signedData = SignedData(serializedBytes, regSig)
-                signedData.serialize().open().copyTo(
-                        path / "${NodeInfoFilesCopier.NODE_INFO_FILE_NAME_PREFIX}${serializedBytes.hash}")
+                signedNodeInfo.serialize()
+                        .open()
+                        .copyTo(path / "${NodeInfoFilesCopier.NODE_INFO_FILE_NAME_PREFIX}${signedNodeInfo.raw.hash}")
             } catch (e: Exception) {
                 logger.warn("Couldn't write node info to file", e)
             }
@@ -85,7 +84,7 @@ class NodeInfoWatcher(private val nodePath: Path,
      * @return an [Observable] returning [NodeInfo]s, at most one [NodeInfo] is returned for each processed file.
      */
     fun nodeInfoUpdates(): Observable<NodeInfo> {
-        return Observable.interval(pollFrequencyMsec, TimeUnit.MILLISECONDS, scheduler)
+        return Observable.interval(pollFrequency, TimeUnit.MILLISECONDS, scheduler)
                 .flatMapIterable { loadFromDirectory() }
     }
 
@@ -100,10 +99,10 @@ class NodeInfoWatcher(private val nodePath: Path,
             return emptyList()
         }
         val result = nodeInfoDirectory.list { paths ->
-            paths.filter { it !in successfullyProcessedFiles }
+            paths.filter { it !in processedNodeInfo }
                     .filter { it.isRegularFile() }
                     .map { path ->
-                        processFile(path)?.apply { successfullyProcessedFiles.add(path) }
+                        processFile(path)?.apply { processedNodeInfo.add(path) }
                     }
                     .toList()
                     .filterNotNull()

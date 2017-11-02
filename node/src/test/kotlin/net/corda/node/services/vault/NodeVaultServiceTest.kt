@@ -67,6 +67,8 @@ class NodeVaultServiceTest {
         database = databaseAndServices.first
         services = databaseAndServices.second
         issuerServices = MockServices(cordappPackages, DUMMY_CASH_ISSUER_KEY, BOC_KEY)
+        services.identityService.verifyAndRegisterIdentity(DUMMY_CASH_ISSUER_IDENTITY)
+        services.identityService.verifyAndRegisterIdentity(BOC_IDENTITY)
     }
 
     @After
@@ -506,7 +508,9 @@ class NodeVaultServiceTest {
         }
 
         val anonymousIdentity = services.keyManagementService.freshKeyAndCert(services.myInfo.chooseIdentityAndCert(), false)
-        val thirdPartyIdentity = AnonymousParty(generateKeyPair().public)
+        val thirdPartyServices = MockServices()
+        val thirdPartyIdentity = thirdPartyServices.keyManagementService.freshKeyAndCert(thirdPartyServices.myInfo.singleIdentityAndCert(), false)
+        services.identityService.verifyAndRegisterIdentity(thirdPartyIdentity)
         val amount = Amount(1000, Issued(BOC.ref(1), GBP))
 
         // Issue then move some cash
@@ -521,7 +525,7 @@ class NodeVaultServiceTest {
 
         database.transaction {
             val moveTx = TransactionBuilder(services.myInfo.chooseIdentity()).apply {
-                Cash.generateSpend(services, this, Amount(1000, GBP), thirdPartyIdentity)
+                Cash.generateSpend(services, this, Amount(1000, GBP), thirdPartyIdentity.party.anonymise())
             }.toWireTransaction(services)
             service.notify(StatesToRecord.ONLY_RELEVANT, moveTx)
         }

@@ -502,12 +502,17 @@ class NodeVaultServiceTest {
 
     @Test
     fun `correct updates are generated for general transactions`() {
-        val service = vaultService
         val vaultSubscriber = TestSubscriber<Vault.Update<*>>().apply {
-            service.updates.subscribe(this)
+            vaultService.updates.subscribe(this)
         }
 
-        val anonymousIdentity = services.keyManagementService.freshKeyAndCert(services.myInfo.chooseIdentityAndCert(), false)
+        val identity = services.myInfo.singleIdentityAndCert()
+        assertEquals(services.identityService.partyFromKey(identity.owningKey), identity.party)
+        assertEquals(services.identityService.wellKnownPartyFromX500Name(identity.party.name)!!, identity.party)
+        val anonymousIdentity = services.keyManagementService.freshKeyAndCert(identity, false)
+        // TODO: These two checks can be removed later on
+        assertEquals(services.identityService.wellKnownPartyFromX500Name(anonymousIdentity.party.name), identity.party)
+        assertEquals(services.identityService.wellKnownPartyFromAnonymous(anonymousIdentity.party), identity.party)
         val thirdPartyServices = MockServices()
         val thirdPartyIdentity = thirdPartyServices.keyManagementService.freshKeyAndCert(thirdPartyServices.myInfo.singleIdentityAndCert(), false)
         services.identityService.verifyAndRegisterIdentity(thirdPartyIdentity)
@@ -515,19 +520,19 @@ class NodeVaultServiceTest {
 
         // Issue then move some cash
         val issueTx = TransactionBuilder(services.myInfo.chooseIdentity()).apply {
-            Cash().generateIssue(this,
-                    amount, anonymousIdentity.party, services.myInfo.chooseIdentity())
+            Cash().generateIssue(this, amount, anonymousIdentity.party.anonymise(), identity.party)
         }.toWireTransaction(services)
         val cashState = StateAndRef(issueTx.outputs.single(), StateRef(issueTx.id, 0))
 
-        database.transaction { service.notify(StatesToRecord.ONLY_RELEVANT, issueTx) }
+        database.transaction { vaultService.notify(StatesToRecord.ONLY_RELEVANT, issueTx) }
         val expectedIssueUpdate = Vault.Update(emptySet(), setOf(cashState), null)
 
         database.transaction {
             val moveTx = TransactionBuilder(services.myInfo.chooseIdentity()).apply {
-                Cash.generateSpend(services, this, Amount(1000, GBP), thirdPartyIdentity.party.anonymise())
+                val changeIdentity = services.keyManagementService.freshKeyAndCert(identity, false)
+                Cash.generateSpend(services, this, Amount(amount.quantity, GBP), changeIdentity, thirdPartyIdentity.party.anonymise())
             }.toWireTransaction(services)
-            service.notify(StatesToRecord.ONLY_RELEVANT, moveTx)
+            vaultService.notify(StatesToRecord.ONLY_RELEVANT, moveTx)
         }
         val expectedMoveUpdate = Vault.Update(setOf(cashState), emptySet(), null)
 

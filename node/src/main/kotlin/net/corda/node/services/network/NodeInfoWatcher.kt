@@ -49,8 +49,7 @@ class NodeInfoWatcher(private val nodePath: Path,
          * is used so that one can freely copy these files without fearing to overwrite another one.
          *
          * @param path the path where to write the file, if non-existent it will be created.
-         * @param nodeInfo the NodeInfo to serialize.
-         * @param signingKey used to sign the NodeInfo data.
+         * @param signedNodeInfo the signed NodeInfo.
          */
         fun saveToFile(path: Path, signedNodeInfo: SignedData<NodeInfo>) {
             try {

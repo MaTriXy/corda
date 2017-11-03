@@ -8,6 +8,7 @@ import net.corda.confidential.SwapIdentitiesHandler
 import net.corda.core.CordaException
 import net.corda.core.concurrent.CordaFuture
 import net.corda.core.crypto.SignedData
+import net.corda.core.crypto.sign
 import net.corda.core.flows.*
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.identity.Party
@@ -18,16 +19,11 @@ import net.corda.core.internal.concurrent.openFuture
 import net.corda.core.messaging.*
 import net.corda.core.node.*
 import net.corda.core.node.services.*
-import net.corda.core.serialization.SerializationWhitelist
-import net.corda.core.serialization.SerializeAsToken
-import net.corda.core.serialization.SingletonSerializeAsToken
-import net.corda.core.serialization.serialize
-import net.corda.core.serialization.deserialize
+import net.corda.core.serialization.*
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.utilities.NetworkHostAndPort
 import net.corda.core.utilities.debug
 import net.corda.core.utilities.getOrThrow
-import net.corda.core.utilities.minutes
 import net.corda.node.VersionInfo
 import net.corda.node.internal.classloading.requireAnnotation
 import net.corda.node.internal.cordapp.CordappLoader
@@ -46,9 +42,7 @@ import net.corda.node.services.events.ScheduledActivityObserver
 import net.corda.node.services.identity.PersistentIdentityService
 import net.corda.node.services.keys.PersistentKeyManagementService
 import net.corda.node.services.messaging.MessagingService
-import net.corda.node.services.network.NetworkMapCacheImpl
-import net.corda.node.services.network.NodeInfoWatcher
-import net.corda.node.services.network.PersistentNetworkMapCache
+import net.corda.node.services.network.*
 import net.corda.node.services.persistence.DBCheckpointStorage
 import net.corda.node.services.persistence.DBTransactionMappingStorage
 import net.corda.node.services.persistence.DBTransactionStorage
@@ -79,7 +73,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.SECONDS
 import kotlin.collections.set
-import kotlin.concurrent.thread
 import kotlin.reflect.KClass
 import net.corda.core.crypto.generateKeyPair as cryptoGenerateKeyPair
 
@@ -138,7 +131,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
     protected val runOnStop = ArrayList<() -> Any?>()
     protected lateinit var database: CordaPersistence
     protected val _nodeReadyFuture = openFuture<Unit>()
-    protected val networkMapClient: NetworkMapClient? by lazy { configuration.compatibilityZoneURL?.let(::HTTPNetworkMapClient) }
+    protected val networkMapClient: NetworkMapClient? by lazy { configuration.compatibilityZoneURL?.let(::NetworkMapClient) }
 
     /** Completes once the node has successfully registered with the network map service
      * or has loaded network map data from local database */
@@ -174,7 +167,10 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         check(started == null) { "Node has already been started" }
         log.info("Generating nodeInfo ...")
         initCertificate()
-        initNodeInfo()
+        val identityKey = initNodeInfo().find { it.public == info.legalIdentities.first().owningKey } ?: throw IllegalArgumentException("Cannot find identity key.")
+        val serialisedNodeInfo = info.serialize()
+        val signature = identityKey.sign(serialisedNodeInfo)
+        NodeInfoWatcher.saveToFile(configuration.baseDirectory, SignedData(serialisedNodeInfo, signature))
     }
 
     open fun start(): StartedNode<AbstractNode> {
@@ -188,8 +184,10 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         val startedImpl = initialiseDatabasePersistence(schemaService) {
             val transactionStorage = makeTransactionStorage()
             val stateLoader = StateLoaderImpl(transactionStorage)
-            val services = makeServices(keyPairs, schemaService, transactionStorage, stateLoader)
-            startNetworkMapUpdate()
+            val nodeServices = makeServices(keyPairs, schemaService, transactionStorage, stateLoader)
+
+            NetworkMapUpdater(services, networkMapClient).startUpdate()
+
             smm = makeStateMachineManager()
             val flowStarter = FlowStarterImpl(serverThread, smm)
             val schedulerService = NodeSchedulerService(
@@ -212,7 +210,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             startMessagingService(rpcOps)
             installCoreFlows()
             val cordaServices = installCordaServices(flowStarter)
-            tokenizableServices = services + cordaServices + schedulerService
+            tokenizableServices = nodeServices + cordaServices + schedulerService
             registerCordappFlows()
             _services.rpcFlows += cordappLoader.cordapps.flatMap { it.rpcFlows }
             FlowLogicRefFactoryImpl.classloader = cordappLoader.appClassLoader
@@ -235,68 +233,6 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         }
     }
 
-    private fun startNetworkMapUpdate() {
-        val oldInfo = services.networkMapCache.getNodeByLegalIdentity(info.legalIdentities.first())
-        // TODO: Make this configurable?
-        val retryInterval = 1.minutes
-        // Compare node info without timestamp.
-        thread(name = "Network Map Updater Thread") {
-            // Only publish and write to disk if there are changes to the node info.
-            if (info.copy(serial = 0L) != oldInfo?.copy(serial = 0L)) {
-                // Register node info if its changed.
-                val serialisedNodeInfo = info.serialize()
-                val signature = services.keyManagementService.sign(serialisedNodeInfo.bytes, info.legalIdentities.first().owningKey)
-                val signedNodeInfo = SignedData(serialisedNodeInfo, signature)
-                networkMapClient?.let {
-                    // Register with network map if its configured.
-                    while (true) {
-                        // Retry until successfully registered with the network map.
-                        it.publish(signedNodeInfo)
-                        try {
-                            break
-                        } catch (e: IllegalArgumentException) {
-                            log.warn("Error encountered while publishing node info, will retry in $retryInterval.", e)
-                            Thread.sleep(retryInterval.toMillis())
-                        }
-                    }
-                }
-                // Write node info to file.
-                NodeInfoWatcher.saveToFile(configuration.baseDirectory, signedNodeInfo)
-            }
-
-            // TODO: Make the node info file watcher run within this thread instead of using observable?
-            val fileWatcher = NodeInfoWatcher(configuration.baseDirectory, configuration.additionalNodeInfoPollingFrequencyMsec)
-            fileWatcher.nodeInfoUpdates().subscribe { node -> services.networkMapCache.addNode(node) }
-
-            // Poll network map for updates periodically after publishing node info, if its configured.
-            networkMapClient?.let { networkMapClient ->
-                while (true) {
-                    try {
-                        val (networkMap, cacheTimeout) = networkMapClient.getNetworkMap()
-                        val currentNodeHashes = services.networkMapCache.allNodeHashes
-                        val toBeAdded = networkMap.subtract(currentNodeHashes).mapNotNull {
-                            // Download new node info from network map
-                            networkMapClient.getNodeInfo(it)
-                        }
-                        val toBeRemoved = currentNodeHashes.subtract(networkMap).mapNotNull { services.networkMapCache.getNodeByHash(it) }
-                        // Remove node info from network map.
-                        toBeRemoved.forEach {
-                            services.networkMapCache.removeNode(it)
-                        }
-                        // Add new node info to the network map cache.
-                        toBeAdded.forEach {
-                            services.networkMapCache.addNode(it)
-                        }
-                        Thread.sleep(cacheTimeout)
-                    } catch (e: IllegalArgumentException) {
-                        log.warn("Error encountered while fetching network map update, will retry in $retryInterval", e)
-                        Thread.sleep(retryInterval.toMillis())
-                    }
-                }
-            }
-        }
-    }
-
     private fun initNodeInfo(): Set<KeyPair> {
         val (identity, identityKeyPair) = obtainIdentity(notaryConfig = null)
         val keyPairs = mutableSetOf(identityKeyPair)
@@ -311,16 +247,12 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
                 identity
             }
         }
-
         info = NodeInfo(
                 myAddresses(),
                 setOf(identity, myNotaryIdentity).filterNotNull(),
                 versionInfo.platformVersion,
                 platformClock.instant().toEpochMilli()
         )
-
-        NodeInfoWatcher.saveToFile(configuration.baseDirectory, info, identityKeyPair)
-
         return keyPairs
     }
 
@@ -799,7 +731,6 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             NetworkMapCacheImpl(
                     PersistentNetworkMapCache(
                             this@AbstractNode.database,
-                            this@AbstractNode.configuration,
                             networkParameters.notaries),
                     identityService)
         }

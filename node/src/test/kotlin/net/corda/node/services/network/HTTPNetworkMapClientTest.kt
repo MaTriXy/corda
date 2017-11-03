@@ -73,7 +73,7 @@ class HTTPNetworkMapClientTest {
         }
 
         val hostAndPort = server.connectors.mapNotNull { it as? ServerConnector }.first()
-        networkMapClient = HTTPNetworkMapClient(URL("http://${hostAndPort.host}:${hostAndPort.localPort}"))
+        networkMapClient = NetworkMapClient(URL("http://${hostAndPort.host}:${hostAndPort.localPort}"))
     }
 
     @After

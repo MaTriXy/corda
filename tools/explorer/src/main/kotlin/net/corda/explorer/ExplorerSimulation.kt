@@ -89,8 +89,6 @@ class ExplorerSimulation(private val options: OptionSet) {
                 options.has("S") -> startNormalSimulation()
                 options.has("F") -> startErrorFlowsSimulation()
             }
-
-            waitForAllNodesToFinish()
         }
     }
 

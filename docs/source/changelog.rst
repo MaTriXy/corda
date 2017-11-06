@@ -77,6 +77,9 @@ UNRELEASED
 
 * Added an overload of ``TransactionWithSignatures.verifySignaturesExcept`` which takes in a collection of ``PublicKey``s.
 
+* ``waitForAllNodesToFinish`` method on the driver has been removed as the driver will automatically shutdown any node
+  which wasn't waited for.
+
 .. _changelog_v1:
 
 Release 1.0

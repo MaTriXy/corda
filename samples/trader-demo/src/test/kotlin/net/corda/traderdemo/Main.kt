@@ -29,6 +29,5 @@ fun main(args: Array<String>) {
         startNode(providedName = DUMMY_BANK_A.name, rpcUsers = demoUser)
         startNode(providedName = DUMMY_BANK_B.name, rpcUsers = demoUser)
         startNode(providedName = BOC.name, rpcUsers = listOf(user))
-        waitForAllNodesToFinish()
     }
 }

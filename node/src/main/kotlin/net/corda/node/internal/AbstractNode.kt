@@ -590,6 +590,16 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         check(networkParameters.minimumPlatformVersion <= versionInfo.platformVersion) { "Node is too old for the network" }
     }
 
+    // TODO Pass in the database and other services into this method to make clear the dependencies
+    private fun makeNetworkMapCache(identityService: IdentityService): NetworkMapCacheImpl {
+        val cache = NetworkMapCacheImpl(
+                PersistentNetworkMapCache(database, configuration, networkParameters.notaries),
+                identityService
+        )
+        runOnStop += cache::close
+        return cache
+    }
+
     private fun makeCoreNotaryService(notaryConfig: NotaryConfig): NotaryService {
         val notaryKey = myNotaryIdentity?.owningKey ?: throw IllegalArgumentException("No notary identity initialized when creating a notary service")
         return if (notaryConfig.validating) {
@@ -728,14 +738,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         override val stateMachineRecordedTransactionMapping = DBTransactionMappingStorage()
         override val auditService = DummyAuditService()
         override val transactionVerifierService by lazy { makeTransactionVerifierService() }
-        override val networkMapCache by lazy {
-            NetworkMapCacheImpl(
-                    PersistentNetworkMapCache(
-                            this@AbstractNode.database,
-                            this@AbstractNode.configuration,
-                            networkParameters.notaries),
-                    identityService)
-        }
+        override val networkMapCache by lazy { makeNetworkMapCache(identityService) }
         override val vaultService by lazy { makeVaultService(keyManagementService, stateLoader) }
         override val contractUpgradeService by lazy { ContractUpgradeServiceImpl() }
         override val attachments: AttachmentStorage get() = this@AbstractNode.attachments

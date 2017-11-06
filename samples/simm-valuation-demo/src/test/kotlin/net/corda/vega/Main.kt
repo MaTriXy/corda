@@ -22,7 +22,5 @@ fun main(args: Array<String>) {
         startWebserver(nodeA)
         startWebserver(nodeB)
         startWebserver(nodeC)
-
-        waitForAllNodesToFinish()
     }
 }

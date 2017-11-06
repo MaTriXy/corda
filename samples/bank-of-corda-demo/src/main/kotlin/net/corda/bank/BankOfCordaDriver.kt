@@ -76,7 +76,6 @@ private class BankOfCordaDriver {
                                         startFlow<CashConfigDataFlow>()))
                         startNode(providedName = BIGCORP_LEGAL_NAME, rpcUsers = listOf(bigCorpUser))
                         startWebserver(bankOfCorda.get())
-                        waitForAllNodesToFinish()
                     }
                 }
                 else -> {

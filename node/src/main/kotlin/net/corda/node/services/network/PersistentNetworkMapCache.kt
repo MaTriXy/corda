@@ -26,6 +26,7 @@ import net.corda.node.utilities.bufferUntilDatabaseCommit
 import net.corda.node.utilities.wrapWithDatabaseTransaction
 import org.hibernate.Session
 import rx.Observable
+import rx.Subscription
 import rx.subjects.PublishSubject
 import java.security.PublicKey
 import java.util.*
@@ -88,17 +89,20 @@ open class PersistentNetworkMapCache(
     override val notaryIdentities: List<Party> = notaries.map { it.identity }
     private val validatingNotaries = notaries.mapNotNullTo(HashSet()) { if (it.validating) it.identity else null }
 
-    private val nodeInfoSerializer = NodeInfoWatcher(configuration.baseDirectory,
-            configuration.additionalNodeInfoPollingFrequencyMsec)
+    private val nodeInfoSubscription = loadFromFiles()
 
     init {
-        loadFromFiles()
         database.transaction { loadFromDB(session) }
     }
 
-    private fun loadFromFiles() {
+    private fun loadFromFiles(): Subscription {
         logger.info("Loading network map from files..")
-        nodeInfoSerializer.nodeInfoUpdates().subscribe { node -> addNode(node) }
+        val nodeInfoWatcher = NodeInfoWatcher(configuration.baseDirectory, configuration.additionalNodeInfoPollingFrequencyMsec)
+        return nodeInfoWatcher.nodeInfoUpdates().subscribe(this::addNode)
+    }
+
+    override fun close() {
+        nodeInfoSubscription.unsubscribe()
     }
 
     override fun isValidatingNotary(party: Party): Boolean = party in validatingNotaries

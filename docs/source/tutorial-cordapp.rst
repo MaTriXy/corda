@@ -293,8 +293,6 @@ IntelliJ
               startWebserver(nodeA)
               startWebserver(nodeB)
               startWebserver(nodeC)
-
-              waitForAllNodesToFinish()
           }
       }
 
@@ -515,8 +513,6 @@ Debugging is done via IntelliJ as follows:
             startWebserver(nodeA)
             startWebserver(nodeB)
             startWebserver(nodeC)
-
-            waitForAllNodesToFinish()
         }
     }
 

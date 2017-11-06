@@ -38,6 +38,8 @@ interface NetworkMapCacheBaseInternal : NetworkMapCacheBase {
 
     /** Indicates if loading network map data from database was successful. */
     val loadDBSuccess: Boolean
+
+    fun close()
 }
 
 interface ServiceHubInternal : ServiceHub {

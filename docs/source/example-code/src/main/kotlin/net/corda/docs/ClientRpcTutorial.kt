@@ -96,7 +96,6 @@ fun main(args: Array<String>) {
                 graph.display()
             }
         }
-        waitForAllNodesToFinish()
         // END 5
     }
 }

@@ -167,7 +167,7 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         check(started == null) { "Node has already been started" }
         log.info("Generating nodeInfo ...")
         initCertificate()
-        val identityKey = initNodeInfo().find { it.public == info.legalIdentities.first().owningKey } ?: throw IllegalArgumentException("Cannot find identity key.")
+        val identityKey = initNodeInfo().first { it.public == info.legalIdentities.first().owningKey }
         val serialisedNodeInfo = info.serialize()
         val signature = identityKey.sign(serialisedNodeInfo)
         NodeInfoWatcher.saveToFile(configuration.baseDirectory, SignedData(serialisedNodeInfo, signature))
@@ -186,7 +186,8 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             val stateLoader = StateLoaderImpl(transactionStorage)
             val nodeServices = makeServices(keyPairs, schemaService, transactionStorage, stateLoader)
 
-            NetworkMapUpdater(services, networkMapClient).startUpdate()
+            NetworkMapUpdater.updateNodeInfo(services, networkMapClient)
+            NetworkMapUpdater.subscriptToNetworkMap(services, networkMapClient)
 
             smm = makeStateMachineManager()
             val flowStarter = FlowStarterImpl(serverThread, smm)

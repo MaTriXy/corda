@@ -159,22 +159,20 @@ open class PersistentNetworkMapCache(
                 }
             }
             val previousNode = registeredNodes.put(node.legalIdentities.first().owningKey, node) // TODO hack... we left the first one as special one
-            when {
-                previousNode == null -> {
-                    logger.info("No previous node found")
-                    database.transaction {
-                        updateInfoDB(node)
-                        changePublisher.onNext(MapChange.Added(node))
-                    }
+            if (previousNode == null) {
+                logger.info("No previous node found")
+                database.transaction {
+                    updateInfoDB(node)
+                    changePublisher.onNext(MapChange.Added(node))
                 }
-                previousNode != node -> {
-                    logger.info("Previous node was found as: $previousNode")
-                    database.transaction {
-                        updateInfoDB(node)
-                        changePublisher.onNext(MapChange.Modified(node, previousNode))
-                    }
+            } else if (previousNode != node) {
+                logger.info("Previous node was found as: $previousNode")
+                database.transaction {
+                    updateInfoDB(node)
+                    changePublisher.onNext(MapChange.Modified(node, previousNode))
                 }
-                else -> logger.info("Previous node was identical to incoming one - doing nothing")
+            } else {
+                logger.info("Previous node was identical to incoming one - doing nothing")
             }
         }
         _loadDBSuccess = true // This is used in AbstractNode to indicate that node is ready.

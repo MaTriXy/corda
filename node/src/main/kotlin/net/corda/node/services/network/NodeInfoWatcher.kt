@@ -2,7 +2,6 @@ package net.corda.node.services.network
 
 import net.corda.cordform.CordformNode
 import net.corda.core.crypto.SignedData
-import net.corda.core.crypto.sign
 import net.corda.core.internal.*
 import net.corda.core.node.NodeInfo
 import net.corda.core.serialization.deserialize
@@ -15,7 +14,7 @@ import rx.Scheduler
 import rx.schedulers.Schedulers
 import java.io.IOException
 import java.nio.file.Path
-import java.security.KeyPair
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 import kotlin.streams.toList
 
@@ -32,11 +31,11 @@ import kotlin.streams.toList
  */
 // TODO: Use NIO watch service instead?
 class NodeInfoWatcher(private val nodePath: Path,
-                      pollFrequency: Long = 5.seconds.toMillis(),
+                      pollFrequency: Duration = 5.seconds,
                       private val scheduler: Scheduler = Schedulers.io()) {
 
     private val nodeInfoDirectory = nodePath / CordformNode.NODE_INFO_DIRECTORY
-    private val pollFrequency: Long = maxOf(pollFrequency, 5.seconds.toMillis())
+    private val pollFrequency: Duration = if (pollFrequency < 5.seconds) 5.seconds else pollFrequency
     private val processedNodeInfo = mutableSetOf<Path>()
 
     companion object {
@@ -83,7 +82,7 @@ class NodeInfoWatcher(private val nodePath: Path,
      * @return an [Observable] returning [NodeInfo]s, at most one [NodeInfo] is returned for each processed file.
      */
     fun nodeInfoUpdates(): Observable<NodeInfo> {
-        return Observable.interval(pollFrequency, TimeUnit.MILLISECONDS, scheduler)
+        return Observable.interval(pollFrequency.toMillis(), TimeUnit.MILLISECONDS, scheduler)
                 .flatMapIterable { loadFromDirectory() }
     }
 

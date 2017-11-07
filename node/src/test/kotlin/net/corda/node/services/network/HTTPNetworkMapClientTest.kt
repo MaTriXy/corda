@@ -103,6 +103,11 @@ class HTTPNetworkMapClientTest {
         assertEquals(nodeInfo2, networkMapClient.getNodeInfo(nodeInfoHash2))
     }
 
+    @Test
+    fun `get hostname string from http response correctly`() {
+       assertEquals("test.host.name", networkMapClient.myPublicHostname())
+    }
+
     private fun createNodeInfo(organisation: String): SignedData<NodeInfo> {
         val keyPair = Crypto.generateKeyPair(X509Utilities.DEFAULT_TLS_SIGNATURE_SCHEME)
         val clientCert = X509Utilities.createCertificate(CertificateType.CLIENT_CA, intermediateCACert, intermediateCAKey, CordaX500Name(organisation = organisation, locality = "London", country = "GB"), keyPair.public)
@@ -134,7 +139,7 @@ internal class MockNetworkMapServer {
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     fun getNetworkMap(): Response {
-        return Response.ok(ObjectMapper().writeValueAsString(nodeInfos.keys.map { it.toString() })).build()
+        return Response.ok(ObjectMapper().writeValueAsString(nodeInfos.keys.map { it.toString() })).header("Cache-Control", "max-age=100000").build()
     }
 
     @GET
@@ -147,6 +152,12 @@ internal class MockNetworkMapServer {
         } else {
             Response.status(Response.Status.NOT_FOUND)
         }.build()
+    }
+
+    @GET
+    @Path("my-hostname")
+    fun getHostName(): Response {
+        return Response.ok("test.host.name").build()
     }
 }
 

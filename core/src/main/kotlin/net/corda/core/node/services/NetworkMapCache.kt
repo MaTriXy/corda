@@ -94,10 +94,6 @@ interface NetworkMapCacheBase {
     /** Return all [NodeInfo]s the node currently is aware of (including ourselves). */
     val allNodes: List<NodeInfo>
 
-    val allNodeHashes: List<SecureHash>
-
-    fun getNodeByHash(nodeHash: SecureHash): NodeInfo?
-
     /**
      * Look up the node information entries for a specific identity key.
      * Note that normally there will be only one node for a key, but for clusters of nodes or distributed services there

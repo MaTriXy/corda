@@ -104,10 +104,10 @@ private fun initialiseTestSerializationImpl() = SerializationDefaults.apply {
         registerScheme(AMQPServerSerializationScheme())
     }
 
-    (P2P_CONTEXT as TestSerializationContext).delegate = if (isAmqpEnabled()) AMQP_P2P_CONTEXT else KRYO_P2P_CONTEXT
+    (P2P_CONTEXT as TestSerializationContext).delegate = AMQP_P2P_CONTEXT
+    (STORAGE_CONTEXT as TestSerializationContext).delegate = AMQP_STORAGE_CONTEXT
     (RPC_SERVER_CONTEXT as TestSerializationContext).delegate = KRYO_RPC_SERVER_CONTEXT
     (RPC_CLIENT_CONTEXT as TestSerializationContext).delegate = KRYO_RPC_CLIENT_CONTEXT
-    (STORAGE_CONTEXT as TestSerializationContext).delegate = if (isAmqpEnabled()) AMQP_STORAGE_CONTEXT else KRYO_STORAGE_CONTEXT
     (CHECKPOINT_CONTEXT as TestSerializationContext).delegate = KRYO_CHECKPOINT_CONTEXT
 }
 

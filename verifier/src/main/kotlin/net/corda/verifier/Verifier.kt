@@ -94,10 +94,10 @@ class Verifier {
                 registerScheme(AMQPVerifierSerializationScheme)
             }
             /**
-             * Even though default context is set to Kryo P2P, the encoding will be adjusted depending on the incoming
+             * Even though default context is set to AMQP P2P, the encoding will be adjusted depending on the incoming
              * request received, see use of [context] in [main] method.
              */
-            SerializationDefaults.P2P_CONTEXT = KRYO_P2P_CONTEXT
+            SerializationDefaults.P2P_CONTEXT = AMQP_P2P_CONTEXT
         }
     }
 

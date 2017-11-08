@@ -36,7 +36,7 @@ class NodeInfoWatcher(private val nodePath: Path,
 
     private val nodeInfoDirectory = nodePath / CordformNode.NODE_INFO_DIRECTORY
     private val pollFrequency: Duration = if (pollFrequency < 5.seconds) 5.seconds else pollFrequency
-    private val processedNodeInfo = mutableSetOf<Path>()
+    private val processedNodeInfoFiles = mutableSetOf<Path>()
 
     companion object {
         private val logger = loggerFor<NodeInfoWatcher>()
@@ -97,10 +97,10 @@ class NodeInfoWatcher(private val nodePath: Path,
             return emptyList()
         }
         val result = nodeInfoDirectory.list { paths ->
-            paths.filter { it !in processedNodeInfo }
+            paths.filter { it !in processedNodeInfoFiles }
                     .filter { it.isRegularFile() }
                     .map { path ->
-                        processFile(path)?.apply { processedNodeInfo.add(path) }
+                        processFile(path)?.apply { processedNodeInfoFiles.add(path) }
                     }
                     .toList()
                     .filterNotNull()

@@ -306,4 +306,4 @@ fun TransactionBuilder.toLedgerTransaction(services: ServiceHub, serializationCo
 /** Convenience method to get the package name of a class literal. */
 val KClass<*>.packageName get() = java.`package`.name
 
-fun URL.openHTTPConnection() = openConnection() as HttpURLConnection
+fun URL.openHttpConnection(): HttpURLConnection = openConnection() as HttpURLConnection

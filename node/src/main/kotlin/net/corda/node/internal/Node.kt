@@ -15,6 +15,7 @@ import net.corda.core.utilities.loggerFor
 import net.corda.node.VersionInfo
 import net.corda.node.internal.cordapp.CordappLoader
 import net.corda.node.serialization.KryoServerSerializationScheme
+import net.corda.node.serialization.NodeClock
 import net.corda.node.services.RPCUserService
 import net.corda.node.services.RPCUserServiceImpl
 import net.corda.node.services.api.SchemaService
@@ -179,7 +180,9 @@ open class Node(configuration: NodeConfiguration,
         return if (!AddressUtils.isPublic(host)) {
             val foundPublicIP = AddressUtils.tryDetectPublicIP()
             if (foundPublicIP == null) {
-                networkMapClient?.myPublicHostname()
+                networkMapClient?.myPublicHostname()?.apply {
+                    log.info("Retrieved public IP from Network Map Service: $this. This will be used instead of the provided \"$host\" as the advertised address.")
+                }
             } else {
                 log.info("Detected public IP: ${foundPublicIP.hostAddress}. This will be used instead of the provided \"$host\" as the advertised address.")
                 foundPublicIP.hostAddress

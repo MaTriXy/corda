@@ -167,9 +167,11 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
         check(started == null) { "Node has already been started" }
         log.info("Generating nodeInfo ...")
         initCertificate()
-        val identityKey = initNodeInfo().first { it.public == info.legalIdentities.first().owningKey }
+        val keyPairs = initNodeInfo()
+        val identityKeypair = keyPairs.first { it.public == info.legalIdentities.first().owningKey }
         val serialisedNodeInfo = info.serialize()
-        val signature = identityKey.sign(serialisedNodeInfo)
+        val signature = identityKeypair.sign(serialisedNodeInfo)
+        // TODO: Signed data might not be sufficient for multiple identity, as it only contains one signature.
         NodeInfoWatcher.saveToFile(configuration.baseDirectory, SignedData(serialisedNodeInfo, signature))
     }
 
@@ -186,8 +188,14 @@ abstract class AbstractNode(val configuration: NodeConfiguration,
             val stateLoader = StateLoaderImpl(transactionStorage)
             val nodeServices = makeServices(keyPairs, schemaService, transactionStorage, stateLoader)
 
-            NetworkMapUpdater.updateNodeInfo(services, networkMapClient)
-            NetworkMapUpdater.subscriptToNetworkMap(services, networkMapClient)
+            val networkMapUpdater = NetworkMapUpdater().apply { runOnStop += this::close }
+            networkMapUpdater.updateNodeInfo(services.myInfo,
+                    configuration,
+                    services.networkMapCache,
+                    services.keyManagementService,
+                    networkMapClient)
+
+            networkMapUpdater.subscribeToNetworkMap(configuration, services.networkMapCache, networkMapClient)
 
             smm = makeStateMachineManager()
             val flowStarter = FlowStarterImpl(serverThread, smm)

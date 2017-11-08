@@ -8,6 +8,7 @@ import net.corda.core.node.NodeInfo
 import net.corda.core.serialization.deserialize
 import net.corda.core.serialization.serialize
 import net.corda.core.utilities.NetworkHostAndPort
+import net.corda.core.utilities.seconds
 import net.corda.node.utilities.CertificateType
 import net.corda.node.utilities.X509Utilities
 import net.corda.testing.SerializationEnvironmentRule
@@ -100,6 +101,7 @@ class HTTPNetworkMapClientTest {
 
         val nodeInfoHash2 = nodeInfo2.serialize().sha256()
         assertThat(networkMapClient.getNetworkMap().networkMap).containsExactly(nodeInfoHash, nodeInfoHash2)
+        assertEquals(100000.seconds, networkMapClient.getNetworkMap().cacheMaxAge)
         assertEquals(nodeInfo2, networkMapClient.getNodeInfo(nodeInfoHash2))
     }
 

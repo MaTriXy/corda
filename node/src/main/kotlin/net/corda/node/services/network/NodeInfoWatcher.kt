@@ -24,18 +24,16 @@ import kotlin.streams.toList
  * - Poll a directory for new serialized [NodeInfo]
  *
  * @param nodePath the base path of a node.
- * @param pollFrequency how often to poll the filesystem in milliseconds. Any value smaller than 5 seconds will
- *        be treated as 5 seconds.
+ * @param pollFrequency how often to poll the filesystem in milliseconds. Must be longer then 5 seconds.
  * @param scheduler a [Scheduler] for the rx [Observable] returned by [nodeInfoUpdates], this is mainly useful for
  *        testing. It defaults to the io scheduler which is the appropriate value for production uses.
  */
 // TODO: Use NIO watch service instead?
 class NodeInfoWatcher(private val nodePath: Path,
-                      pollFrequency: Duration = 5.seconds,
+                      private val pollInterval: Duration = 5.seconds,
                       private val scheduler: Scheduler = Schedulers.io()) {
 
     private val nodeInfoDirectory = nodePath / CordformNode.NODE_INFO_DIRECTORY
-    private val pollFrequency: Duration = if (pollFrequency < 5.seconds) 5.seconds else pollFrequency
     private val processedNodeInfoFiles = mutableSetOf<Path>()
 
     companion object {
@@ -63,6 +61,7 @@ class NodeInfoWatcher(private val nodePath: Path,
     }
 
     init {
+        require(pollInterval >= 5.seconds) { "Poll interval must be 5 seconds or longer." }
         if (!nodeInfoDirectory.isDirectory()) {
             try {
                 nodeInfoDirectory.createDirectories()
@@ -82,7 +81,7 @@ class NodeInfoWatcher(private val nodePath: Path,
      * @return an [Observable] returning [NodeInfo]s, at most one [NodeInfo] is returned for each processed file.
      */
     fun nodeInfoUpdates(): Observable<NodeInfo> {
-        return Observable.interval(pollFrequency.toMillis(), TimeUnit.MILLISECONDS, scheduler)
+        return Observable.interval(pollInterval.toMillis(), TimeUnit.MILLISECONDS, scheduler)
                 .flatMapIterable { loadFromDirectory() }
     }
 

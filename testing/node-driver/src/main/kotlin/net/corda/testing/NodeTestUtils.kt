@@ -8,6 +8,7 @@ import com.nhaarman.mockito_kotlin.whenever
 import net.corda.core.identity.CordaX500Name
 import net.corda.core.node.ServiceHub
 import net.corda.core.transactions.TransactionBuilder
+import net.corda.core.utilities.seconds
 import net.corda.node.services.config.CertChainPolicyConfig
 import net.corda.node.services.config.NodeConfiguration
 import net.corda.node.services.config.VerifierType
@@ -73,7 +74,7 @@ fun testNodeConfiguration(
         doReturn(emptyList<CertChainPolicyConfig>()).whenever(it).certificateChainCheckPolicies
         doReturn(VerifierType.InMemory).whenever(it).verifierType
         doReturn(5).whenever(it).messageRedeliveryDelaySeconds
-        doReturn(0L).whenever(it).additionalNodeInfoPollingFrequencyMsec
+        doReturn(5.seconds.toMillis()).whenever(it).additionalNodeInfoPollingFrequencyMsec
         doReturn(null).whenever(it).devModeOptions
         doCallRealMethod().whenever(it).certificatesDirectory
         doCallRealMethod().whenever(it).trustStoreFile

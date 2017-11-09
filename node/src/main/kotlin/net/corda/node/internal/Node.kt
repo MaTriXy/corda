@@ -178,9 +178,11 @@ open class Node(configuration: NodeConfiguration,
         return if (!AddressUtils.isPublic(host)) {
             val foundPublicIP = AddressUtils.tryDetectPublicIP()
             if (foundPublicIP == null) {
-                networkMapClient?.myPublicHostname()?.apply {
+                val retrievedHostName = networkMapClient?.myPublicHostname()
+                if (retrievedHostName != null) {
                     log.info("Retrieved public IP from Network Map Service: $this. This will be used instead of the provided \"$host\" as the advertised address.")
                 }
+                retrievedHostName
             } else {
                 log.info("Detected public IP: ${foundPublicIP.hostAddress}. This will be used instead of the provided \"$host\" as the advertised address.")
                 foundPublicIP.hostAddress

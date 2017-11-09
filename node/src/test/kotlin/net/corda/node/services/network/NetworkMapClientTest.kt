@@ -40,7 +40,7 @@ import javax.ws.rs.core.Response
 import javax.ws.rs.core.Response.ok
 import kotlin.test.assertEquals
 
-class HTTPNetworkMapClientTest {
+class NetworkMapClientTest {
     @Rule
     @JvmField
     val testSerialization = SerializationEnvironmentRule()
@@ -126,7 +126,7 @@ class HTTPNetworkMapClientTest {
 @Path("network-map")
 // This is a stub implementation of the network map rest API.
 internal class MockNetworkMapServer {
-    private val nodeInfos = mutableMapOf<SecureHash, NodeInfo>()
+    val nodeInfoMap = mutableMapOf<SecureHash, NodeInfo>()
     @POST
     @Path("publish")
     @Consumes(MediaType.APPLICATION_OCTET_STREAM)
@@ -134,21 +134,21 @@ internal class MockNetworkMapServer {
         val registrationData = input.readBytes().deserialize<SignedData<NodeInfo>>()
         val nodeInfo = registrationData.verified()
         val nodeInfoHash = nodeInfo.serialize().sha256()
-        nodeInfos.put(nodeInfoHash, nodeInfo)
+        nodeInfoMap.put(nodeInfoHash, nodeInfo)
         return ok().build()
     }
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     fun getNetworkMap(): Response {
-        return Response.ok(ObjectMapper().writeValueAsString(nodeInfos.keys.map { it.toString() })).header("Cache-Control", "max-age=100000").build()
+        return Response.ok(ObjectMapper().writeValueAsString(nodeInfoMap.keys.map { it.toString() })).header("Cache-Control", "max-age=100000").build()
     }
 
     @GET
     @Path("{var}")
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     fun getNodeInfo(@PathParam("var") nodeInfoHash: String): Response {
-        val nodeInfo = nodeInfos[SecureHash.parse(nodeInfoHash)]
+        val nodeInfo = nodeInfoMap[SecureHash.parse(nodeInfoHash)]
         return if (nodeInfo != null) {
             Response.ok(nodeInfo.serialize().bytes)
         } else {

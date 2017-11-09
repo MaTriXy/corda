@@ -1,6 +1,7 @@
 package net.corda.node.utilities.registration
 
 import com.google.common.net.MediaType
+import net.corda.core.internal.openHttpConnection
 import net.corda.node.utilities.CertificateStream
 import org.apache.commons.io.IOUtils
 import org.bouncycastle.pkcs.PKCS10CertificationRequest
@@ -45,7 +46,7 @@ class HTTPNetworkRegistrationService(compatibilityZoneURL: URL) : NetworkRegistr
 
     override fun submitRequest(request: PKCS10CertificationRequest): String {
         // Post request to certificate signing server via http.
-        val conn = URL("$registrationURL").openConnection() as HttpURLConnection
+        val conn = URL("$registrationURL").openHttpConnection()
         conn.doOutput = true
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/octet-stream")
